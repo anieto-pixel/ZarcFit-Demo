@@ -19,10 +19,11 @@ class WidgetTextBar(QWidget):
         Parameters: keys_1 (list): A list of keys with the values to be displayed labels.
         """
         super().__init__()
+        self.default_text = "default"
         self.value_labels = {}  # Maps keys to QLabel instances.
         self.key_colors = {}    # Maps keys to HTML colors for label text.
         
-        self._user_comment="default"
+        self._user_comment= self.default_text
 
         keys_1 = keys_1 or []  # Ensure it's a list
 
@@ -37,6 +38,14 @@ class WidgetTextBar(QWidget):
     #--------------------------------------- 
     def get_comment(self):
         return {'comment':self._user_comment}
+    
+    def clear_text_box(self):  # <-- NEW PUBLIC METHOD
+        """
+        Clears the text input box and resets the stored comment.
+        """
+        self._comment_edit.clear()
+        self._user_comment = self.default_text
+    
     
     #--------------------------------------
     #   Private Methods

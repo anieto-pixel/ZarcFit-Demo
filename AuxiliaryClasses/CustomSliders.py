@@ -1,223 +1,181 @@
+
 import sys
 import math
 import textwrap
+
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QSlider, QLabel, QPushButton
+    QApplication, QWidget, QVBoxLayout, QSlider,
+    QLabel, QPushButton, QLineEdit, QSizePolicy
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QRect, QSize
+from PyQt5.QtCore import Qt, pyqtSignal, QRect
 from PyQt5.QtGui import QPainter, QFont, QColor, QFontMetrics
 
 
 class CustomSliders(QWidget):
-    """
-    A basic vertical slider with labeled ticks and a value label.
-
-    This class provides:
-      - A slider from min_value to max_value.
-      - Tick markings displayed on the widget's paint event.
-      - A label showing the current slider value.
-    """
-
     was_disabled = pyqtSignal(bool)
 
     def __init__(self, min_value, max_value, colour, number_of_tick_intervals=10):
         super().__init__()
 
-        # Setup slider parameters
         self._min_value = min_value
         self._max_value = max_value
         self.colour = colour
         self.disabled_colour = "gray"
         self.number_of_tick_intervals = number_of_tick_intervals
         self.is_disabled = False
-        
-        # Declare main UI elements:
+
         self._slider = None
         self._disable_button = None
+        self._input_box = None
         self._layout = None
-        
-        # Building UI components
+
+        # We'll store the original "enabled" style of the button here:
+        self._initial_button_style = ""
+
         self._build_ui()
         
-    # -----------------------------------------------------------------------
-    #  Public Methods
-    # -----------------------------------------------------------------------
+#-----------------------------------------------------------------
+#   Public Methods
+#------------------------------------------------------------------
+
     def get_value(self):
-        """
-        Returns the current integer value of the slider.
-        """
         return self._slider.value()
 
     def set_value(self, value):
-        """
-        Programmatically sets the slider to a given integer value.
-        """
         self._slider.setValue(int(value))
-    
+
     def set_value_exact(self, value):
-        """
-        Programmatically sets the slider to a given integer value.
-        """
         return self.set_value(self)
 
     def toggle_red_frame(self, state: bool):
-        """
-        Set a thick red frame around the label of the slider if not already set,
-        and remove it if it is set.
-        """
         red_border_style = "border: 3px solid red;"
         current_style = self._disable_button.styleSheet()
-
         if not state:
-            # Remove the red border
             new_style = current_style.replace(red_border_style, "")
             self._disable_button.setStyleSheet(new_style)
         else:
-            # Append the red border to the current style
             new_style = current_style + " " + red_border_style
             self._disable_button.setStyleSheet(new_style)
 
     def value_changed(self):
-        """
-        Exposes the slider's valueChanged signal for external listeners.
-        """
         return self._slider.valueChanged
-      
-    def set_is_disabled(self, state:bool):
-        """
-        Seets "is disabled" to the given state.Signals.
-        """
-        
+
+    def set_is_disabled(self, state: bool):
         self.is_disabled = state
         self._react_to_is_disbled_state()
-    # -----------------------------------------------------------------------
-    #  Private Methods
-    # -----------------------------------------------------------------------
-    # Construction and initialization
-    def _build_ui(self):
         
-        # Creates main slider
-        self._slider = QSlider(Qt.Vertical, self)  # enabled by default
+#-----------------------------------------------------------------
+#   Private Methods
+#------------------------------------------------------------------
 
-        # Creates disable button with label overlay
+    def _build_ui(self):
+        self._slider = QSlider(Qt.Vertical, self)
         self._create_disable_button()
         self._create_setvalue_box()
         self._connect_signals()
         self._setup_layout()
         self._setup_slider()
         
+
     def _create_disable_button(self):
+        font = QFont("Arial")
+        font.setPixelSize(10)
+
+        self._disable_button = QPushButton(str(self._slider.value()), self)
+        self._disable_button.setFont(font)
+
+        metrics = QFontMetrics(font)
+        min_width = metrics.horizontalAdvance("-0099e+00") + 6
+        exact_height = metrics.height() + 4
+
+        # self._disable_button.setMinimumWidth(min_width)
+        self._disable_button.setFixedHeight(exact_height)
+        self._disable_button.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+        # This is the stylesheet that keeps the padding, border, etc.
+        base_style = """
+            QPushButton {
+                padding: 1px;
+                margin: 0px;
+                border: 1px solid gray;
+            }
         """
-        Create the push-button that displays the slider's value and toggles state.
-        """
-        font_size=12
-        
-        #create button
-        initial_text = str(self._slider.value())
-        self._disable_button = QPushButton(initial_text, self)
-        self._disable_button.setStyleSheet(f"font-size: {font_size}px;")
-        
-        #Calculate the width required to display 8 characters.
-        font = QFont()
-        font.setPointSize(font_size)  # Match the label size
-        metrics = self.fontMetrics()
-        width= metrics.horizontalAdvance("-0099e+00") + 10  # Add padding
-    
-        #set button's dimensions
-        self._disable_button.setFixedSize(width, 20)
-        
+        self._disable_button.setStyleSheet(base_style)
+
+        # Store it so we can restore it after disabling
+        self._initial_button_style = base_style
+
     def _create_setvalue_box(self):
-        """ 
-        Create an imput window to manually set the slider 
-        """
-        placeholder_text="Set Value"
+        font = QFont("Arial")
+        font.setPixelSize(10)
+
         self._input_box = QLineEdit()
-        self._input_box.setPlaceholderText(placeholder_text)
-        
-        self._input_box.setFixedWidth(self._disable_button.width())
+        self._input_box.setFont(font)
+        self._input_box.setPlaceholderText("Set Value")
+        self._input_box.setAlignment(Qt.AlignCenter)
+
+        metrics = QFontMetrics(font)
+        min_width = metrics.horizontalAdvance("-99e+00") + 3
+        exact_height = metrics.height() + 4
+
+#        self._input_box.setMinimumWidth(min_width)
+        self._input_box.setFixedHeight(exact_height)
+        self._input_box.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
         self._input_box.setStyleSheet("""
             QLineEdit {
                 background-color: lightgrey;
-                border: 1px solid lightgrey;
+                border: 1px solid gray;
+                padding: 1px;
+                margin: 0px;
             }
         """)
 
     def _connect_signals(self):
-        """
-        Connect internal widget signals to their handlers.
-        """
-        # Whenever the slider changes, update the label text
         self._slider.valueChanged.connect(self._update_label)
-
-        # Toggling the push-button toggles disabled style
         self._disable_button.clicked.connect(self._toggle_slider)
-        #connect set value button
         self._input_box.returnPressed.connect(lambda: self.set_value(self._input_box.text()))
 
     def _setup_layout(self):
-        """
-        Create and assign a layout containing the slider and the value label.
-        """
         self._layout = QVBoxLayout()
         self._layout.addWidget(self._slider)
         self._layout.addWidget(self._disable_button)
         self._layout.addWidget(self._input_box)
         self.setLayout(self._layout)
-        
-        # Ensure the widget has a minimum width equal to the button width + padding
-        button_min_width = self._disable_button.width()
-        self.setMinimumWidth(button_min_width + 3)  # Add small cushioning
+
+        button_min_width = self._disable_button.minimumWidth()
+        #self.setMinimumWidth(button_min_width + 4)
 
     def _setup_slider(self):
-        """
-        Configure the slider's properties (range, ticks, color).
-        """
         self._slider.setRange(self._min_value, self._max_value)
         self._slider.setTickPosition(QSlider.TicksBothSides)
 
-        # Safely set a tick interval (avoid division by zero if ranges are small)
         interval = max(1, (self._max_value - self._min_value) // self.number_of_tick_intervals)
         self._slider.setTickInterval(interval)
-
         self._update_slider_style(self.colour)
-        self.setMinimumWidth(75)
 
-    #Listeners and handers
     def _toggle_slider(self):
-        """
-        Flip the is_disabled state and update styles. It signals.
-        """
         self.is_disabled = not self.is_disabled
         self._react_to_is_disbled_state()
 
     def _react_to_is_disbled_state(self):
-        """
-        Adjusts appeareance to toggle state.
-        """
-
         if self.is_disabled:
-            # In a "disabled" state: set gray background on label
-            self._disable_button.setStyleSheet(
-                "background-color: gray;  border: none;"
-            )
+            # Overwrite with a simpler style
+            self._disable_button.setStyleSheet("background-color: gray; border: none;")
         else:
-            # In an "enabled" state: revert background
-            self._disable_button.setStyleSheet(
-                "background-color: none;"
-            )
+            # Restore the original style
+            self._disable_button.setStyleSheet(self._initial_button_style)
 
-        # Update label text based on new slider value
         self._update_label()
-        # Emit a signal indicating the disabled state has changed
         self.was_disabled.emit(self.is_disabled)
-    
+
     def _update_slider_style(self, colour: str):
         style = textwrap.dedent(f"""
             QSlider::handle:vertical {{
                 background: {colour};
                 width: 10px;
                 height: 10px;
-                border-radius: 20px;
+                border-radius: 10px;
             }}
             QSlider::add-page:vertical {{
                 background: #d3d3d3;
@@ -227,47 +185,39 @@ class CustomSliders(QWidget):
         self._slider.setStyleSheet(style)
 
     def _update_label(self):
-        """
-        Update the on-screen label whenever the slider value changes.
-        """
-        self._disable_button.setText(str(self.get_value()))
-        self._input_box.setText(str(self.get_value()))
+        current_val = str(self.get_value())
+        self._disable_button.setText(current_val)
+        #self._input_box.setText(current_val)
+        self._input_box.clear()
+        self._input_box.setPlaceholderText("Set Value")
+
 
     def _string_by_tick(self, i):
-        """
-        Return the string to display next to each tick mark.
-        In this default implementation, it's just the integer value.
-        """
         return str(i)
 
     def paintEvent(self, event):
-        """
-        Draw tick labels for the range of values at fixed intervals.
-        """
         super().paintEvent(event)
         painter = QPainter(self)
-        painter.setFont(QFont("Arial", 7))
+
+        tick_font = QFont("Arial", 6)
+        painter.setFont(tick_font)
         painter.setPen(QColor(0, 0, 0))
 
-        # Gather slider range/tick info
         min_val = self._slider.minimum()
         max_val = self._slider.maximum()
         tick_interval = self._slider.tickInterval()
 
-        # Calculate available space for drawing
         height = self._slider.height()
         top_off = 5
         bottom_off = 5
         effective_height = height - top_off - bottom_off
 
-        # For each tick step, compute its position and draw text
         for i in range(min_val, max_val + 1, tick_interval):
-            tick_pos = (
-                height - bottom_off - (effective_height * (i - min_val)) // (max_val - min_val)
-            )
-            text_rect = QRect(25, tick_pos, 50, 20)
+            tick_pos = height - bottom_off - (effective_height * (i - min_val)) // (max_val - min_val)
+            text_rect = QRect(26, tick_pos, 50, 20)
             painter.drawText(text_rect, Qt.AlignCenter, self._string_by_tick(i))
-            
+
+
 #############################################################################
 
 class DoubleSliderWithTicks(CustomSliders):
@@ -348,7 +298,9 @@ class DoubleSliderWithTicks(CustomSliders):
         Show the floating-point value with three decimal places.
         """
         self._disable_button.setText(f"{self.get_value():.3f}")
-        self._input_box.setText(f"{self.get_value():.3f}")
+        #self._input_box.setText(f"{self.get_value():.3f}")
+        self._input_box.clear()
+        self._input_box.setPlaceholderText("Set Value")
 
     def _emit_corrected_value(self, _):
         """
@@ -396,6 +348,8 @@ class EPowerSliderWithTicks(DoubleSliderWithTicks):
         Display the computed exponent value in scientific notation.
         """
         self._disable_button.setText(f"{self.get_value():.1e}")
+        self._input_box.clear()
+        self._input_box.setPlaceholderText("Set Value")
 
     def _string_by_tick(self, i):
         """
@@ -403,7 +357,7 @@ class EPowerSliderWithTicks(DoubleSliderWithTicks):
         """
         exponent = int(i / self._scale_factor)
         return f"1E{exponent}"
-
+            
 
 #######################################################################
 # ---------------------------------------------------------------------
@@ -674,6 +628,9 @@ class TestSliders(QWidget):
             lambda val, label=label_text: print(f"{label} Changed: {val}")
         )
         layout.insertWidget(0, new_slider)
+
+QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

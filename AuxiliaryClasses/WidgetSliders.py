@@ -130,6 +130,7 @@ class WidgetSliders(QWidget):
         sliders = {}
         for key, (slider_type, min_value, max_value, color, num_ticks) in slider_configurations.items():
             slider_widget = slider_type(min_value, max_value, color, num_ticks)
+            slider_widget.setFixedWidth(75) #maybe delete?
             sliders[key] = slider_widget
         return sliders
 
@@ -139,21 +140,24 @@ class WidgetSliders(QWidget):
         with a label and the slider widget.
         """
         main_layout = QHBoxLayout()
-
+    
+        # NEW: tighter spacing
+        main_layout.setSpacing(2)
+        main_layout.setContentsMargins(0, 0, 0, 0) #main_layout.setContentsMargins(0, 0, 15, 0)
+    
         for key, slider in self.sliders.items():
             slider_layout = QVBoxLayout()
             label = QLabel(key)
             label.setAlignment(Qt.AlignCenter)
-
+    
             # Style the label with the slider's color.
             slider_color = slider_configurations[key][3]
             label.setStyleSheet(f"color: {slider_color}; font-weight: bold;")
-
+    
             slider_layout.addWidget(label)
             slider_layout.addWidget(slider)
             main_layout.addLayout(slider_layout)
-
-        main_layout.setContentsMargins(0, 0, 15, 0)
+    
         self.setLayout(main_layout)
 
     def _connect_signals(self):
@@ -168,6 +172,7 @@ class WidgetSliders(QWidget):
 # -------------------------------
 # Quick Test
 # -------------------------------
+
 if __name__ == "__main__":
     from ConfigImporter import ConfigImporter  # For testing only
     from PyQt5.QtWidgets import QPushButton

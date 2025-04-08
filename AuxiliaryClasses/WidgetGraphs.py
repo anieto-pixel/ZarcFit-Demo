@@ -309,7 +309,7 @@ class BodeGraph(ParentGraph):
         mag_db = np.log10(mag)  # or 20*np.log10(mag) if you really want dB
         return freq_log, mag_db
 
-
+#patatito
 class ColeColeGraph(ParentGraph):
     """
     Plots real(Z) vs. -imag(Z), plus a secondary manual line.
@@ -321,6 +321,7 @@ class ColeColeGraph(ParentGraph):
             'Z_real': np.array([]),
             'Z_imag': np.array([]),
         }
+        self._original_secondary_manual_data = copy.deepcopy(self._secondary_manual_data)  # CHANGED: Save original secondary data for filtering
         self._secondary_plot = None
         super().__init__()
         self.getPlotItem().setAspectLocked(True, 1)
@@ -333,7 +334,7 @@ class ColeColeGraph(ParentGraph):
         Create the main two plot items plus a secondary plot item.
         """
         super()._create_plot_items()
-        # Add a third line for the secondary manual data
+        # Add a third line for the secondary manual data (pink line)
         self._secondary_plot = self.plot(
             pen=pg.mkPen(color='#F4C2C2', style=Qt.DashLine),
             symbol='o',
@@ -354,21 +355,35 @@ class ColeColeGraph(ParentGraph):
             'Z_real': Z_real,
             'Z_imag': Z_imag
         }
+        self._original_secondary_manual_data = copy.deepcopy(self._secondary_manual_data)  # CHANGED: Update original secondary data for filtering
         if self._secondary_plot is not None:
+            self._refresh_plot(self._secondary_manual_data, self._secondary_plot)
+
+    def filter_frequency_range(self, f_min, f_max):  # CHANGED: Overriding filter_frequency_range to include secondary data
+        # Filter base and primary manual data using the parent method
+        super().filter_frequency_range(f_min, f_max)
+        
+        # Now filter the secondary manual data (pink line)
+        if hasattr(self, '_original_secondary_manual_data'):
+            secondary_mask = (
+                (self._original_secondary_manual_data['freq'] >= f_min) &
+                (self._original_secondary_manual_data['freq'] <= f_max)
+            )
+            self._secondary_manual_data = {
+                'freq': self._original_secondary_manual_data['freq'][secondary_mask],
+                'Z_real': self._original_secondary_manual_data['Z_real'][secondary_mask],
+                'Z_imag': self._original_secondary_manual_data['Z_imag'][secondary_mask],
+            }
             self._refresh_plot(self._secondary_manual_data, self._secondary_plot)
 
     def _prepare_xy(self, freq, z_real, z_imag):
         return z_real, -z_imag
 
 
+
 class TimeGraph(ParentGraph):
-    """
-    A time-domain plot that interprets (Z_real -> time) and (Z_imag -> voltage).
-    It also has a secondary line for "voltage_up" data, plus a dedicated shading item.
-    """
 
     def __init__(self):
-        # 1) Define placeholders for secondary data, M-values, and text items.
         self._secondary_manual_data = {
             'freq': np.array([]),
             'Z_real': np.array([]),  # time
@@ -377,18 +392,15 @@ class TimeGraph(ParentGraph):
         self._secondary_dynamic_plot = None
 
         self.mx = self.mt = self.m0 = None
-        self.mx_text = pg.TextItem(color='w', anchor=(0, 0))
-        self.mt_text = pg.TextItem(color='w', anchor=(0, 0))
-        self.m0_text = pg.TextItem(color='w', anchor=(0, 0))
+        # Anchor so that (1, 0) is the reference point – top-right corner of the text.
+        self.mx_text = pg.TextItem(color='w', anchor=(1, 0))
+        self.mt_text = pg.TextItem(color='w', anchor=(1, 0))
+        self.m0_text = pg.TextItem(color='w', anchor=(1, 0))
 
-        # 2) IMPORTANT: Call the parent constructor last so _create_plot_items() etc. run first.
         super().__init__()
-
-        # 3) Configure the plot labels and text items.
         self._configure_plot()
         self._setup_text_items()
 
-        # 4) Force an immediate refresh + autoRange so the first view is properly scaled.
         self._refresh_graph()
         self.plotItem.getViewBox().autoRange()
 
@@ -398,45 +410,62 @@ class TimeGraph(ParentGraph):
         self.setLabel('left', "Voltage")
 
     def _create_plot_items(self):
-        """
-        Override the parent's method to:
-          (a) create the usual static/dynamic lines from the parent
-          (b) then create a dedicated shading item
-          (c) then create the secondary line for voltage_up
-        """
-        super()._create_plot_items()  # Creates self._static_plot and self._dynamic_plot
-        
+        super()._create_plot_items()
+        if self._static_plot is not None:
+            self._static_plot.setSymbol(None)
+            self._static_plot.hide()
         if self._dynamic_plot is not None:
-            self._dynamic_plot.setSymbolSize(4)       
+            self._dynamic_plot.setSymbol(None)
 
-        # (b) Create a dedicated PlotDataItem for shading
+        # Shading item.
         self._shading_item = pg.PlotDataItem(
-            pen=pg.mkPen('b', width=0),
+            pen=pg.mkPen('c', width=0),
             fillLevel=0,
-            brush=pg.mkBrush(0, 0, 255, 80)  # semi-transparent blue
+            brush=pg.mkBrush(0, 250, 250, 180)
         )
         self.addItem(self._shading_item)
 
-        # (c) Create the secondary line for "voltage_up"
+        # Secondary line for "voltage_up."
         self._secondary_dynamic_plot = self.plot(
-            pen=pg.mkPen(color='#F4C2C2'),
-            symbol='o',
-            symbolSize=4,
-            symbolBrush='#F4C2C2', symbolPen='#F4C2C2'
+            pen=pg.mkPen(color='#F4C2C2')
         )
+        self._secondary_dynamic_plot.setSymbol(None)
 
     def _setup_text_items(self):
         """
-        Place the Mx, Mt, M0 text items onto the ViewBox so they remain
-        in a fixed screen position rather than moving with the data.
+        Connect the text items to the ViewBox so that we can control their
+        positions in screen (scene) space. We then attach a slot to sigResized
+        to update their positions whenever the plot is resized.
         """
         vb = self.plotItem.vb
         for txt in (self.mx_text, self.mt_text, self.m0_text):
             txt.setParentItem(vb)
-        # Adjust positions as needed
-        self.mx_text.setPos(300, 10)
-        self.mt_text.setPos(300, 30)
-        self.m0_text.setPos(300, 50)
+
+        # Update positions when the ViewBox is resized
+        vb.sigResized.connect(self._update_text_positions)
+        # Ensure positions are correct immediately
+        self._update_text_positions()
+
+    def _update_text_positions(self):
+        """
+        Positions the text items near the top-right corner of the visible area.
+        """
+        vb = self.plotItem.vb
+        # This returns the box in scene coordinates
+        rect = vb.sceneBoundingRect()
+
+        # We'll place the first text item 10 pixels in from top-right,
+        # then stack the others below it.
+        x_offset = 100
+        y_offset = 100
+        spacing  = 20
+
+        # top-right corner is (rect.right(), rect.top()) in scene coords
+        # because our anchor is (1, 0) for each text item, we setPos
+        # so that the text's right edge aligns with rect.right().
+        self.mx_text.setPos(rect.right() - x_offset, rect.top() + y_offset)
+        self.mt_text.setPos(rect.right() - x_offset, rect.top() + y_offset + spacing)
+        self.m0_text.setPos(rect.right() - x_offset, rect.top() + y_offset + 2*spacing)
 
     def _refresh_graph(self):
         """
@@ -530,11 +559,11 @@ class TimeGraph(ParentGraph):
 
             self.mx = 1000.0 * (integral_mx / Vp)
             self.mt = 1000.0 * (integral_mt / Vp)
-            self.m0 = 1000.0 * (v_at_0p01 / Vp)
+            self.m0 = (v_at_0p01 / Vp)
 
         # Update the text items
-        self.mx_text.setText(f"Mx = {self.mx:.1f}")
-        self.mt_text.setText(f"Mt = {self.mt:.1f}")
+        self.mx_text.setText(f"Mx= {self.mx:5.1f}")
+        self.mt_text.setText(f"Mt= {self.mt:.1f}")
         self.m0_text.setText(f"M0 = {self.m0:.3f}")
 
     @staticmethod
@@ -553,6 +582,45 @@ class TimeGraph(ParentGraph):
         """
         return {'mx': self.mx, 'mt': self.mt, 'm0': self.m0}
 
+    def _apply_auto_scale(self):
+        # Collect base data
+        x_base, y_base = self._prepare_xy(
+            self._base_data['freq'],
+            self._base_data['Z_real'],
+            self._base_data['Z_imag'],
+        )
+        # Collect manual (time) data
+        x_manual, y_manual = self._prepare_xy(
+            self._manual_data['freq'],
+            self._manual_data['Z_real'],
+            self._manual_data['Z_imag'],
+        )
+        # Optionally collect secondary data
+        x_sec, y_sec = self._prepare_xy(
+            self._secondary_manual_data['freq'],
+            self._secondary_manual_data['Z_real'],
+            self._secondary_manual_data['Z_imag'],
+        )
+
+        # Combine them all
+        all_x = np.concatenate([x_base, x_manual, x_sec])
+        all_y = np.concatenate([y_base, y_manual, y_sec])
+
+        # Skip if empty
+        if all_x.size == 0 or all_y.size == 0:
+            return
+
+        x_min, x_max = np.min(all_x), np.max(all_x)
+        y_min, y_max = np.min(all_y), np.max(all_y)
+
+        self._auto_range_in_progress = True
+        self.plotItem.getViewBox().setRange(
+            xRange=(x_min, x_max),
+            yRange=(y_min, y_max),
+            padding=0.1
+        )
+        self._auto_range_in_progress = False
+        
 
 class WidgetGraphs(QWidget):
     """
@@ -776,7 +844,7 @@ class TestWidget(QWidget):
         self.graphs._small_graph_2.update_parameters_manual(freq, z_real, z_imag)
 
         # Update the 'blue line' in the TimeDomain
-        self.graphs._tab_graph.update_parameters_manual(freq, time, volt)
+        self.graphs._tab_graph.update_parameters_manual(freq, time, volt, -volt)
 
         # -- 2) Update the PINK (secondary) line in ColeColeGraph --
         # Create a bigger shift so the pink line is clearly different:
@@ -793,9 +861,12 @@ class TestWidget(QWidget):
 #  MAIN
 ###############################################################################
 if __name__ == '__main__':
+    
     from PyQt5.QtWidgets import QApplication
     # Make sure we have a QApplication instance
     app = QApplication(sys.argv)
+    
+    app.setAttribute(Qt.AA_Use96Dpi)
 
     # Create and show the test widget
     tester = TestWidget()

@@ -21,8 +21,8 @@ class TimeDomainBuilder(QObject):
     def __init__(self, model_circuit) -> None:
         
         super().__init__() 
-        self.N = 2 ** 10
-        self.T = 4
+        self.N = 2 ** 12     #number of frequencies, power of 2
+        self.T = 4           # Time range for Fourier Transform 
         self.model_circuit = model_circuit  
         self._integral_variables = {}
         
@@ -30,7 +30,7 @@ class TimeDomainBuilder(QObject):
     #   Public Methods
     #-----------------------------------------------
     def get_integral_variables(self):
-        return self._integral_variables
+        return self._integral_variables     
     
     def set_model_circuit(self, model_circuit):
         self.model_circuit=model_circuit
@@ -45,11 +45,12 @@ class TimeDomainBuilder(QObject):
         df = 1.0 / self.T
 
         fmin   = 0
-        fmax   = n_freq / self.T
+        fmax   = n_freq * df
         freq_even = np.linspace(fmin, fmax, int(n_freq + 1))
         freq_even[0] = 0.001
 
         z_complex = model_circuit.run_rock(params, freq_even)
+        z_complex[0] = z_complex[0].real
         t, volt_down, volt_up=self._fourier_transform(z_complex, dt)       
         
         self._integration_variables(t, volt_down)
@@ -59,18 +60,21 @@ class TimeDomainBuilder(QObject):
 
     def transform_to_time_domain(self,experiment_data):
         """
-        Transform experimental data to the time domain.
+        Transform experimental data to the time domain. 
+        Relies on interpolation to "guess" the values at evenly spaced frequencies.
+        Then it applies a real IFFT.
         """
         n_freq = (self.N // 2) #+1
+        
         prune= 10 #will only use every 10th element of the array
                 #reason beign extrapolate works poorly with size differences
         dt = self.T / (self.N/prune)
-        #df = 1.0 / self.T
+        df = 1.0 / self.T
 
         fmin   = 0
-        fmax   = n_freq / self.T
+        fmax   = n_freq * df
         freq_even = np.linspace(fmin, fmax, int(n_freq + 1))
-        freq_even[0] = 0.001
+        #freq_even[0] = 0.001 #?
 
         freq_even = freq_even[::prune]
               
@@ -170,3 +174,91 @@ class TimeDomainBuilder(QObject):
             index = np.searchsorted(t, mili)
             self._integral_variables[key]=v_down[index]
             
+#------------------------------------------------------------------------------
+# Test
+#------------------------------------------------------------------------------
+
+import numpy as np
+from PyQt5.QtCore import QObject
+# Import your TimeDomainBuilder class here, or paste the class above this test.
+
+# -------------------------------------------------------------------
+# 1) Create a minimal dummy ModelCircuitParent-like class
+# -------------------------------------------------------------------
+class DummyModelCircuit:
+    """
+    Simulates a 'model circuit' for testing. 
+    The 'run_rock(params, freq_even)' method must return an array of complex impedances.
+    """
+    def run_rock(self, params, freq_even: np.ndarray) -> np.ndarray:
+        # For testing, just return some made-up impedance:
+        # z = R + jX, here let's do a frequency-dependent real and imaginary part:
+        R = params.get("R", 50)  # default 50 ohms
+        X = params.get("X", 10)  # default 10 ohms
+        # Let's pretend the imaginary part has a sqrt(f) shape, just for variety
+        z_real = np.full_like(freq_even, R, dtype=float)
+        z_imag = X * np.sqrt(freq_even)
+        return z_real + 1j * z_imag
+
+
+# -------------------------------------------------------------------
+# 2) Manual Test Function
+# -------------------------------------------------------------------
+def manual_test_time_domain_builder():
+    # Create a dummy model circuit instance
+    circuit = DummyModelCircuit()
+
+    # Create our builder
+    tdb = TimeDomainBuilder(model_circuit=circuit)
+
+    # Check initial N, T, and integral variables
+    print("Initial N:", tdb.N)
+    print("Initial T:", tdb.T)
+    print("Initial integral vars:", tdb.get_integral_variables())
+
+    # -------------------------------------------------------------------
+    # 3) Test run_time_domain(...)
+    # -------------------------------------------------------------------
+    test_params = {"R": 100, "X": 20}  # just a dict of param values
+    freq_out, time_out, v_down, v_up = tdb.run_time_domain(test_params, circuit)
+
+    print("\n=== Results from run_time_domain(...) ===")
+    print("freq_out:", freq_out[:10], " ... ({} total)".format(len(freq_out)))
+    print("time_out:", time_out[:10], " ... ({} total)".format(len(time_out)))
+    print("v_down:", v_down[:10], "... ({} total)".format(len(v_down)))
+    print("v_up:", v_up[:10], "... ({} total)".format(len(v_up)))
+
+    # Check the newly computed integral variables
+    print("Integral variables after run_time_domain call:")
+    for k, val in tdb.get_integral_variables().items():
+        print(f"  {k} = {val:.4f}")
+
+    # -------------------------------------------------------------------
+    # 4) Test transform_to_time_domain(...) with some made-up experiment data
+    # -------------------------------------------------------------------
+    # Create synthetic frequency/impedance data for demonstration
+    # Suppose we have an experimental freq from 1Hz to 100Hz, with some real/imag parts
+    experiment_data = {
+        "freq":   np.linspace(1, 100, 50),  # 50 points
+        "Z_real": np.linspace(80, 120, 50), # just a ramp 80->120
+        "Z_imag": np.linspace(-40, -20, 50) # ramp -40->-20
+    }
+
+    freq_td, t_td, v_down_td = tdb.transform_to_time_domain(experiment_data)
+
+    print("\n=== Results from transform_to_time_domain(...) ===")
+    print("freq_td:", freq_td[:10], " ... ({} total)".format(len(freq_td)))
+    print("t_td:", t_td[:10], " ... ({} total)".format(len(t_td)))
+    print("v_down_td:", v_down_td[:10], "... ({} total)".format(len(v_down_td)))
+
+    # -------------------------------------------------------------------
+    # 5) Done
+    # -------------------------------------------------------------------
+    print("\nManual test completed with no errors.\n")
+
+
+# -------------------------------------------------------------------
+# 6) Run the test if this file is executed directly
+# -------------------------------------------------------------------
+if __name__ == "__main__":
+    manual_test_time_domain_builder()

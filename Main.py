@@ -67,8 +67,9 @@ class MainWidget(QWidget):
         space_between_areas=10
         splitter.setSizes([top_area, bottom_area])
         splitter.setHandleWidth(space_between_areas)
-        #splitter.setStretchFactor(0, 1)  # Allow middle_area to expand with extra space
-        #splitter.setStretchFactor(1, 0)  # Keep bottom_area at its fixed size
+        
+        splitter.setStretchFactor(0, 1)  # Allow middle_area to expand with extra space
+        splitter.setStretchFactor(1, 0)  # Keep bottom_area at its fixed size
 
         main_layout = QVBoxLayout()
         main_layout.addWidget(top_bar)
@@ -266,6 +267,8 @@ class MainWidget(QWidget):
         
         self.config.set_input_file_type(self.widget_input_file.get_file_type_name())
         self.config.set_input_file(self.widget_input_file.get_current_file_path())
+        
+        self.widget_at_bottom.clear_text_box()
 
     def _handle_recover_file_values(self):
         """Recovers file values from output. Updates sliders position."""
@@ -417,6 +420,9 @@ class MainWidget(QWidget):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    
+    app.setAttribute(Qt.AA_Use96Dpi) #VER ESTO
+    
     config_file = "config.ini"
 
     # MainWindow container

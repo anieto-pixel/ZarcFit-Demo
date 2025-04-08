@@ -11,7 +11,7 @@ from scipy.interpolate import PchipInterpolator
 from PyQt5.QtCore import QCoreApplication, QObject, pyqtSignal
 from ModelCircuits import ModelCircuitParent, ModelCircuitParallel, ModelCircuitSeries
 from TimeDomainBuilder import TimeDomainBuilder
-from Fit import Fit
+from FitBuilder import FitBuilder
 
 # Bounds are scaled. Need to add padding for 0 values, handle Qei,
 # and implement a way of making Rinf negative.
@@ -58,7 +58,7 @@ class Calculator(QObject):
         # Initialize the circuit model.
         self._model_circuit = ModelCircuitParallel()
         # Instantiate Fit with both experiment data and the circuit model.
-        self.fit_builder = Fit(self._experiment_data, self._model_circuit)
+        self.fit_builder = FitBuilder(self._experiment_data, self._model_circuit)
         self.time_domain_builder = TimeDomainBuilder(self._model_circuit)
 
         # Dictionary for additional fit variables.
@@ -105,7 +105,7 @@ class Calculator(QObject):
         Return the combined dictionary of model parameters, integrating:
         """
         integral_variables = self.time_domain_builder.get_integral_variables()
-        model_variables = self._model_circuit.q | self._model_circuit.v_second | self._model_circuit.v_other_sec
+        model_variables = self._model_circuit.q | self._model_circuit.par_second | self._model_circuit.par_other_sec
         fit_variables = self._fit_variables
         calc_variables = self._calculator_variables
         

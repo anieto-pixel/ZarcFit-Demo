@@ -55,8 +55,8 @@ class WidgetButtonsRow(QWidget):
         self.f12_button: DualLabelButton = DualLabelButton("F12 Damping", "F12 Constrains On")
 
         # Create additional regular buttons.
-        self.fup_button: QPushButton = QPushButton("PageUp")
-        self.fdown_button: QPushButton = QPushButton("PageDown")
+        self.fup_button: QPushButton = QPushButton("PageUp. Max Freq")
+        self.fdown_button: QPushButton = QPushButton("PageDown. Min freq")
 
         # Group all buttons into a list for easy iteration.
         self._buttons_list = [
@@ -79,7 +79,7 @@ class WidgetButtonsRow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)  # Remove margins around the layout
         # Reduce button size
         
-        button_height = 25  # Adjust height
+        button_height = 20  # Adjust height 25
         font_size = 9  # Adjust font size
         # Ensure buttons have no padding/margin and are tightly packed
         for button in self._buttons_list:
