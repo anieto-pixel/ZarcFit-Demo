@@ -309,7 +309,7 @@ class BodeGraph(ParentGraph):
         mag_db = np.log10(mag)  # or 20*np.log10(mag) if you really want dB
         return freq_log, mag_db
 
-#patatito
+
 class ColeColeGraph(ParentGraph):
     """
     Plots real(Z) vs. -imag(Z), plus a secondary manual line.
@@ -378,7 +378,6 @@ class ColeColeGraph(ParentGraph):
 
     def _prepare_xy(self, freq, z_real, z_imag):
         return z_real, -z_imag
-
 
 
 class TimeGraph(ParentGraph):
@@ -860,13 +859,23 @@ class TestWidget(QWidget):
 ###############################################################################
 #  MAIN
 ###############################################################################
+
 if __name__ == '__main__':
     
     from PyQt5.QtWidgets import QApplication
+
+#---Allowing proper display in different resolutions-----------------------
+    import platform
+    import ctypes
+    if platform.system()=='Windows' and int(platform.release()) >= 8:   
+        ctypes.windll.shcore.SetProcessDpiAwareness(True)
+#---Allowing proper display in different resolutions-----------------------    
+    
     # Make sure we have a QApplication instance
     app = QApplication(sys.argv)
     
-    app.setAttribute(Qt.AA_Use96Dpi)
+#    app.setAttribute(Qt.AA_Use96Dpi) #maybe it is fixing it to the wrong value?
+ 
 
     # Create and show the test widget
     tester = TestWidget()

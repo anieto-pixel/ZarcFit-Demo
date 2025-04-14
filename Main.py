@@ -419,9 +419,17 @@ class MainWidget(QWidget):
 
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
     
-    app.setAttribute(Qt.AA_Use96Dpi) #VER ESTO
+#---Allowing proper display in different resolutions-----------------------
+    import platform
+    import ctypes
+    if platform.system()=='Windows' and int(platform.release()) >= 8:   
+        ctypes.windll.shcore.SetProcessDpiAwareness(True)
+#---Allowing proper display in different resolutions-----------------------   
+    
+    
+    app = QApplication(sys.argv)
+#    app.setAttribute(Qt.AA_Use96Dpi) #VER ESTO
     
     config_file = "config.ini"
 
