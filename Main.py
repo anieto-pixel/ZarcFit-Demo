@@ -31,7 +31,6 @@ class MainWidget(QWidget):
         super().__init__()
 
         # Data attributes
-        # Data placeholders for file & model outputs
         self.file_data = {"freq": None, "Z_real": None, "Z_imag": None}
         self.v_sliders = None
 
@@ -43,37 +42,31 @@ class MainWidget(QWidget):
         # Layout UI
         self._build_ui()
 
-        # Connect signals to handlers
+        # Connect signals, hotkeys, etc.
         self._connect_listeners()
         self._initialize_hotkeys_and_buttons()
-
-        #Optional initialization settings
         self._session_initialization()
-        
-    # ------------------- UI BUILD METHODS -------------------
+
     def _build_ui(self):
         """Assembles the main layout from smaller UI components."""
         top_bar = self._build_top_bar()
         middle_area = self._build_middle_area()
         bottom_area = self._build_bottom_area()
 
-        # Use a splitter to separate the middle and bottom areas
-        splitter = QSplitter(Qt.Vertical)
-        splitter.addWidget(middle_area)
-        splitter.addWidget(bottom_area)
+        # Create a vertical splitter to separate middle and bottom areas.
+        self.splitter = QSplitter(Qt.Vertical)
+        self.splitter.addWidget(middle_area)
+        self.splitter.addWidget(bottom_area)
         
-        top_area=600
-        bottom_area=200
-        space_between_areas=10
-        splitter.setSizes([top_area, bottom_area])
-        splitter.setHandleWidth(space_between_areas)
-        
-        splitter.setStretchFactor(0, 1)  # Allow middle_area to expand with extra space
-        splitter.setStretchFactor(1, 0)  # Keep bottom_area at its fixed size
+        # Set initial sizes (these will be updated dynamically on resize).
+        self.splitter.setSizes([300, 300])
+        self.splitter.setHandleWidth(10)
+        self.splitter.setStretchFactor(0, 1)  # Middle area expands
+        self.splitter.setStretchFactor(1, 0)  # Bottom area remains fixed initially
 
         main_layout = QVBoxLayout()
         main_layout.addWidget(top_bar)
-        main_layout.addWidget(splitter)
+        main_layout.addWidget(self.splitter)
         main_layout.setContentsMargins(5, 5, 5, 0)
         self.setLayout(main_layout)
 
@@ -90,7 +83,7 @@ class MainWidget(QWidget):
         return container
 
     def _build_middle_area(self) -> QWidget:
-        """Builds the middle area with frequency slider and graphs."""
+        """Builds the middle area with a frequency slider and graphs."""
         freq_layout = QVBoxLayout()
         freq_layout.addWidget(self.freq_slider)
         freq_layout.setContentsMargins(0, 0, 0, 0)
@@ -109,8 +102,9 @@ class MainWidget(QWidget):
 
     def _build_bottom_area(self) -> QWidget:
         """Builds the bottom area with sliders, buttons, and a text bar."""
-        # Sliders and buttons area
         bottom_half_layout = QHBoxLayout()
+        # Let widget_sliders and widget_buttons compress vertically.
+        self.widget_sliders.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         bottom_half_layout.addWidget(self.widget_sliders)
         bottom_half_layout.addWidget(self.widget_buttons)
         bottom_half_layout.setContentsMargins(0, 0, 0, 0)
@@ -118,7 +112,6 @@ class MainWidget(QWidget):
         bottom_half_widget = QWidget()
         bottom_half_widget.setLayout(bottom_half_layout)
 
-        # Combine sliders/buttons area with the text bar
         bottom_layout = QVBoxLayout()
         bottom_layout.addWidget(bottom_half_widget)
         bottom_layout.addWidget(self.widget_at_bottom)
@@ -126,15 +119,13 @@ class MainWidget(QWidget):
         bottom_widget.setLayout(bottom_layout)
         return bottom_widget
 
-    # -------------- WIDGET INITIALIZATION --------------
     def _initialize_core_widgets(self):
         """Initializes configuration, core widgets, and models."""
-        # Config-related initialization
+        from ConfigImporter import ConfigImporter
         self.config = ConfigImporter(config_file)
 
-        # Initialize core widgets
-        self.widget_input_file = WidgetInputFile(self.config.input_file,self.config.input_file_type)        
-        self.widget_output_file = WidgetOutputFile(self.config.variables_to_print,self.config.output_file)
+        self.widget_input_file = WidgetInputFile(self.config.input_file, self.config.input_file_type)        
+        self.widget_output_file = WidgetOutputFile(self.config.variables_to_print, self.config.output_file)
         self.widget_graphs = WidgetGraphs()
         self.freq_slider = ListSliderRange()
         self.widget_sliders = WidgetSliders(
@@ -143,27 +134,13 @@ class MainWidget(QWidget):
         self.widget_buttons = WidgetButtonsRow()
         self.widget_at_bottom = WidgetTextBar(self.config.secondary_variables_to_display)
 
-        # Initialize Models
         self.calculator = Calculator()
         self.calculator.set_bounds(self.config.slider_configurations)
 
-    def _create_file_options_widget(self) -> QWidget:
-        """
-        Builds the top bar containing the file input and file output widgets.
-        """
-        layout = QHBoxLayout()
-        self.widget_input_file.setSizePolicy(
-            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred
-        )
-        self.widget_output_file.setSizePolicy(
-            QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Preferred
-        )
-        layout.addWidget(self.widget_input_file, 1)  # This widget gets all extra space.
-        layout.addWidget(self.widget_output_file, 0)   # This widget stays at its preferred size.
-        layout.setContentsMargins(0, 0, 0, 0)
-        container = QWidget()
-        container.setLayout(layout)
-        return container
+
+
+
+
 
     # ---------------- SIGNAL CONNECTIONS ----------------
     def _connect_listeners(self):
@@ -248,7 +225,6 @@ class MainWidget(QWidget):
         shortcut_space.activated.connect(
             lambda: self.widget_output_file.print_variables_list()
         )
-
 
     # ------------------- HANDLERS -------------------
     def _handle_update_file_data(self, freq: np.ndarray, Z_real: np.ndarray, Z_imag: np.ndarray):

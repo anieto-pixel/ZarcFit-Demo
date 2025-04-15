@@ -194,18 +194,21 @@ class WidgetInputFile(QWidget):
         self.next_button = QPushButton(">")
         self.file_label = QLabel("No file selected")
         self._slider = ListSlider()
-        
+    
         # Slider setup
-        self._slider.setMinimumWidth(600)
-        
-        # File label
+        self._slider.setMinimumWidth(200)
+    
+        # File label alignment
         self.file_label.setAlignment(Qt.AlignCenter)
-        
+    
         # Button and Slider actions
         self._connect_listeners()
-        
+    
         # Main layout
         layout = QHBoxLayout()
+        layout.setContentsMargins(5, 5, 5, 5)  # Fixed margins; adjust if needed.
+        layout.setSpacing(1)                  # Fixed spacing; adjust if needed.
+    
         layout.addWidget(self.select_folder_button)
         layout.addWidget(self.select_file_type_button)
         layout.addWidget(self.previous_button)
@@ -214,6 +217,54 @@ class WidgetInputFile(QWidget):
         layout.addWidget(self._slider)
         self.setLayout(layout)
         
+        slider_container = QWidget()                        
+        slider_layout = QHBoxLayout(slider_container)       
+        slider_layout.setContentsMargins(4, 0, 4, 0)         
+        slider_layout.setSpacing(0)
+        slider_layout.addWidget(self._slider)
+        layout.addWidget(slider_container)        
+    
+        # Set a fixed height for the buttons (allowing width to adjust)
+        standard_height = 17  # Desired fixed height in pixels.
+        self.select_folder_button.setFixedHeight(standard_height)
+        self.select_file_type_button.setFixedHeight(standard_height)
+        self.previous_button.setFixedHeight(standard_height)
+        self.next_button.setFixedHeight(standard_height)
+    
+        # Let the buttons adjust their width automatically based on their contents.
+        self.select_folder_button.adjustSize()
+        self.select_file_type_button.adjustSize()
+        self.previous_button.adjustSize()
+        self.next_button.adjustSize()
+    
+        # Set the font size for these buttons to 7 pt.
+        btn_font = self.select_folder_button.font()
+        btn_font.setPointSize(7)
+        self.select_folder_button.setFont(btn_font)
+        self.select_file_type_button.setFont(btn_font)
+        self.previous_button.setFont(btn_font)
+        self.next_button.setFont(btn_font)
+    
+        # Set the file label's font to 7 pt.
+        label_font = self.file_label.font()
+        label_font.setPointSize(7)
+        self.file_label.setFont(label_font)
+    
+        # Add a style sheet to the file label for left/right padding.
+        self.file_label.setStyleSheet("padding-left:4px; padding-right:4px;")  # MODIFY THIS LINE
+    
+        self.select_folder_button.setMinimumWidth(50)
+        self.select_file_type_button.setMinimumWidth(45)
+        self.previous_button.setMinimumWidth(30)
+        self.next_button.setMinimumWidth(30)
+        
+        # Optionally, add horizontal padding to the buttons (if desired).
+        self.select_folder_button.setStyleSheet("padding-left:4px; padding-right:4px;")
+        self.select_file_type_button.setStyleSheet("padding-left:4px; padding-right:4px;")
+        self.previous_button.setStyleSheet("padding-left:4px; padding-right:4px;")
+        self.next_button.setStyleSheet("padding-left:4px; padding-right:4px;")
+
+   
     def _connect_listeners(self):
         self.select_folder_button.clicked.connect(self._select_folder_handler)
         self.select_file_type_button.clicked.connect(self._select_file_type_handler)
@@ -490,7 +541,7 @@ class WidgetInputFile(QWidget):
         print(error_msg)
 
         # Optionally show a QMessageBox warning to the user
-        #QMessageBox.warning(self, "File Read Error. Possibly wrong format", error_msg)
+        QMessageBox.warning(self, "File Read Error. Possibly wrong format", error_msg)
 
         # Update label text
         self.file_label.setText("Error reading file. Possibly wrong filetype.")

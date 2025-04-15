@@ -19,9 +19,10 @@ from pyqtgraph import mkPen
 
 from PyQt5.QtWidgets import (
     QApplication, QPushButton, QWidget, QTabWidget, QHBoxLayout,
-    QVBoxLayout, QFrame, QSizePolicy
+    QVBoxLayout, QFrame, QSizePolicy, QSplitter, QToolTip
 )
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
 
 # Example import for the type-hinted method below:
 # from ModelManual import CalculationResult
@@ -54,6 +55,8 @@ class ParentGraph(pg.PlotWidget):
 
     def __init__(self):
         super().__init__()
+        self.setMouseTracking(True)
+        
         self._init_data()
         self._init_ui()
         self._init_signals()
@@ -68,6 +71,11 @@ class ParentGraph(pg.PlotWidget):
         self._refresh_graph()
         # Optionally enable auto-scale
         self.auto_scale_button.setChecked(True)
+
+        # Display of coordenates as the mouse hoovers over the plot
+        self._coord_label = pg.TextItem("", anchor=(0, 1), color="w")
+        self.plotItem.vb.addItem(self._coord_label)
+        self.scene().sigMouseMoved.connect(self._mouse_moved)
 
     # -----------------------------------------------------------------------
     #  Public Methods
@@ -275,6 +283,100 @@ class ParentGraph(pg.PlotWidget):
             )
             self._auto_range_in_progress = False
 
+    def _mouse_moved(self, pos):
+        """
+        Snaps the hover label to the nearest data point, using pixel distances
+        instead of data-space distances. That way, a single threshold works
+        across very different scales.
+        """
+        #sets how close the point needs to be to the cursor
+        threshold_pixels = 5.0
+            
+        # We'll store (distance_in_pixels, x_in_data, y_in_data).
+        candidates = []
+    
+        # Gather points from base data
+        x_base, y_base = self._prepare_xy(
+            self._base_data['freq'],
+            self._base_data['Z_real'],
+            self._base_data['Z_imag'],
+        )
+        candidates.extend(
+            self._build_scene_candidates(pos, x_base, y_base)
+        )
+    
+        # Gather points from manual data
+        x_man, y_man = self._prepare_xy(
+            self._manual_data['freq'],
+            self._manual_data['Z_real'],
+            self._manual_data['Z_imag'],
+        )
+        candidates.extend(
+            self._build_scene_candidates(pos, x_man, y_man)
+        )
+    
+        # If this is ColeColeGraph or if there's secondary data
+        if hasattr(self, '_secondary_manual_data') and self._secondary_manual_data['freq'].size > 0:
+            x_sec, y_sec = self._prepare_xy(
+                self._secondary_manual_data['freq'],
+                self._secondary_manual_data['Z_real'],
+                self._secondary_manual_data['Z_imag'],
+            )
+            candidates.extend(
+                self._build_scene_candidates(pos, x_sec, y_sec)
+            )
+    
+        label_text = ""
+        if candidates:
+            best = min(candidates, key=lambda t: t[0])  # t[0] is pixel distance
+
+            if best[0] < threshold_pixels:
+                # "Snap" to that point
+                label_text = f"x: {best[1]:.2f}\ny: {best[2]:.2f}"
+                self._coord_label.setPos(best[1], best[2])
+            else:
+                # If no point is near enough, hide label
+                mouse_pt = self.plotItem.vb.mapSceneToView(pos)
+                self._coord_label.setPos(mouse_pt.x(), mouse_pt.y())
+    
+        self._coord_label.setText(label_text)
+    
+    
+    def _build_scene_candidates(self, mouse_scene_pos, x_array, y_array):
+        """
+        Given arrays of x, y in data space, convert them each to scene
+        coords and measure pixel distance to mouse_scene_pos.
+        Returns a list of (dist_in_pixels, x_data, y_data).
+        """
+        vb = self.plotItem.vb
+        result = []
+        for (xd, yd) in zip(x_array, y_array):
+            # Convert (xd, yd) from data coords -> scene coords
+            data_point_scene = vb.mapViewToScene(pg.QtCore.QPointF(xd, yd))
+    
+            # Pixel-distance from mouse to that data point
+            dx = data_point_scene.x() - mouse_scene_pos.x()
+            dy = data_point_scene.y() - mouse_scene_pos.y()
+            dist_pixels = (dx*dx + dy*dy)**0.5
+    
+            result.append((dist_pixels, xd, yd))
+    
+        return result
+
+    """
+    #this version of mouse mooved will display the values of any coordenates 
+    #that the mpuse is hoovering on
+    def _mouse_moved(self, pos):
+        # Convert scene pos -> data pos
+        mouse_pt = self.plotItem.vb.mapSceneToView(pos)
+        # Update text
+        self._coord_label.setText(f'x: {mouse_pt.x():.2f}\ny: {mouse_pt.y():.2f}')
+        # Place the label *at* the mouse data point
+        self._coord_label.setPos(mouse_pt.x(), mouse_pt.y())
+
+        self._coord_label.setFont(QFont('Arial', 5))
+        self._coord_label.setPos(mouse_pt.x(), mouse_pt.y())
+    """
 
 class PhaseGraph(ParentGraph):
     def __init__(self):
@@ -296,6 +398,7 @@ class PhaseGraph(ParentGraph):
 class BodeGraph(ParentGraph):
     def __init__(self):
         super().__init__()
+        self.setMouseTracking(True)
         self.setTitle("Impedance Magnitude Graph")
         self.setLabel('bottom', "log10(Freq[Hz])")
         self.setLabel('left', "Log10 Magnitude [dB]")
@@ -643,17 +746,30 @@ class WidgetGraphs(QWidget):
         self._tab_widget.addTab(self._tab_graph, "T.Domain Graph")
         self._tab_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._tab_widget.setStyleSheet("QTabWidget::pane { border: none; }")
-
+        
+        tab_bar = self._tab_widget.tabBar()
+        font = tab_bar.font()
+        font.setPointSize(7)
+        tab_bar.setFont(font)
+    
         tab_bar_height = self._tab_widget.tabBar().sizeHint().height()
-
+    
         left_panel = self._create_left_panel()
         right_panel = self._create_right_panel(tab_bar_height)
-
+    
+        # Use QSplitter to allow manual dragging between the left and right panels.
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(left_panel)
+        splitter.addWidget(right_panel)
+        
+        # Optionally, set initial sizes.
+        splitter.setSizes([600, 300])  # Adjust these numbers as needed.
+        
         main_layout = QHBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(10)
-        main_layout.addWidget(left_panel)
-        main_layout.addWidget(right_panel)
+        # Instead of adding left_panel and right_panel directly, add the splitter.
+        main_layout.addWidget(splitter)
         self.setLayout(main_layout)
 
     def _create_left_panel(self):

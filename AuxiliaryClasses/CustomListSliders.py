@@ -11,6 +11,14 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QSlider, QVBoxLayout, QWidget
 
+def get_dpi_scale():
+    """
+    Returns a scaling factor based on a 96 DPI baseline.
+    """
+    screen = QApplication.primaryScreen()
+    if screen:
+        return 96.0 / screen.logicalDotsPerInch()
+    return 1.0
 
 # ---------------------------------------------------------------------
 # Single-handle slider that maps a list of discrete values.
@@ -62,29 +70,38 @@ class ListSlider(QtWidgets.QSlider):
 
     def _apply_custom_style(self):
         """Apply a custom style to improve the slider's visual appearance."""
-        self.setStyleSheet("""
-            QSlider::groove:horizontal {
-                border: 1px solid #bbb;
+        scale = get_dpi_scale()  # This returns a value < 1 on high-DPI (e.g., ~0.67 on 150% displays)
+        groove_height = int(6 * scale)           
+        groove_radius = int(4 * scale)            
+        groove_margin = int(2 * scale)            
+        handle_width = int(6 * scale)           
+        handle_margin = int(-5 * scale)          
+        handle_radius = int(8 * scale)        
+        border_width = int(1 * scale)      
+
+        self.setStyleSheet(f"""
+            QSlider::groove:horizontal {{
+                border: {border_width}px solid #bbb;
                 background: white;
-                height: 10px;
-                border-radius: 4px;
-                margin: 2px 0;
-            }
-            QSlider::sub-page:horizontal {
+                height: {groove_height}px;
+                border-radius: {groove_radius}px;
+                margin: {groove_margin}px 0;
+            }}
+            QSlider::sub-page:horizontal {{
                 background: #0078D7;
-                border-radius: 4px;
-            }
-            QSlider::add-page:horizontal {
+                border-radius: {groove_radius}px;
+            }}
+            QSlider::add-page:horizontal {{
                 background: #bbb;
-                border-radius: 4px;
-            }
-            QSlider::handle:horizontal {
+                border-radius: {groove_radius}px;
+            }}
+            QSlider::handle:horizontal {{
                 background: #005999;
-                border: 1px solid #0078D7;
-                width: 16px;
-                margin: -5px 0;
-                border-radius: 8px;
-            }
+                border: {border_width}px solid #0078D7;
+                width: {handle_width}px;
+                margin: {handle_margin}px 0;
+                border-radius: {handle_radius}px;
+            }}
         """)
 
     def get_list_value(self):

@@ -1,22 +1,32 @@
-
 import sys
 import math
 import textwrap
-
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QSlider,
-    QLabel, QPushButton, QLineEdit, QSizePolicy
+    QLabel, QPushButton, QLineEdit, QSizePolicy, QHBoxLayout, QSpacerItem
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QRect
+from PyQt5.QtCore import Qt, pyqtSignal, QRect, QSize
 from PyQt5.QtGui import QPainter, QFont, QColor, QFontMetrics
 
+def get_dpi_scale():
+    """
+    Compute a scaling factor based on a baseline of 96 DPI.
+    This helper is applied to elements not automatically scaled.
+    """
+    screen = QApplication.primaryScreen()
+    if screen:
+        logical_dpi = screen.logicalDotsPerInch()
+        return 96.0 / logical_dpi
+    return 1.0
 
+###############################################################################
+# CustomSliders
+###############################################################################
 class CustomSliders(QWidget):
     was_disabled = pyqtSignal(bool)
-
+    
     def __init__(self, min_value, max_value, colour, number_of_tick_intervals=10):
         super().__init__()
-
         self._min_value = min_value
         self._max_value = max_value
         self.colour = colour
@@ -29,15 +39,16 @@ class CustomSliders(QWidget):
         self._input_box = None
         self._layout = None
 
-        # We'll store the original "enabled" style of the button here:
         self._initial_button_style = ""
-
         self._build_ui()
         
-#-----------------------------------------------------------------
-#   Public Methods
-#------------------------------------------------------------------
-
+    def sizeHint(self):
+        # Provide a compact default size with a lower width hint.
+        return QSize(50, 150)
+    
+    #-----------------------------------------------------------------
+    # Public Methods
+    #-----------------------------------------------------------------
     def get_value(self):
         return self._slider.value()
 
@@ -45,7 +56,7 @@ class CustomSliders(QWidget):
         self._slider.setValue(int(value))
 
     def set_value_exact(self, value):
-        return self.set_value(self)
+        return self.set_value(value)
 
     def toggle_red_frame(self, state: bool):
         red_border_style = "border: 3px solid red;"
@@ -64,10 +75,9 @@ class CustomSliders(QWidget):
         self.is_disabled = state
         self._react_to_is_disbled_state()
         
-#-----------------------------------------------------------------
-#   Private Methods
-#------------------------------------------------------------------
-
+    #-----------------------------------------------------------------
+    # Private Methods
+    #-----------------------------------------------------------------
     def _build_ui(self):
         self._slider = QSlider(Qt.Vertical, self)
         self._create_disable_button()
@@ -76,59 +86,59 @@ class CustomSliders(QWidget):
         self._setup_layout()
         self._setup_slider()
         
-
     def _create_disable_button(self):
+        scale = get_dpi_scale()
         font = QFont("Arial")
-        font.setPixelSize(10)
-
+        # CHANGED: Increase base font size from 6 to 10 for a thicker button.
+        font.setPixelSize(int(8 * scale))  # <-- This line sets the font size for the disable button.
         self._disable_button = QPushButton(str(self._slider.value()), self)
         self._disable_button.setFont(font)
 
         metrics = QFontMetrics(font)
-        min_width = metrics.horizontalAdvance("-0099e+00") + 6
         exact_height = metrics.height() + 4
-
-        # self._disable_button.setMinimumWidth(min_width)
-        self._disable_button.setFixedHeight(exact_height)
+        # CHANGED: The button height is derived from the increased font size.
+        self._disable_button.setFixedHeight(int(exact_height * scale))
         self._disable_button.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
-        # This is the stylesheet that keeps the padding, border, etc.
-        base_style = """
-            QPushButton {
+        # CHANGED: Use a style sheet that now uses the new base size (10*scale).
+        base_style = f"""
+            QPushButton {{
+                font-size: {int(8 * scale)}px;  /* CHANGED: Increased from 6px to 10px */
                 padding: 1px;
                 margin: 0px;
                 border: 1px solid gray;
-            }
+            }}
         """
         self._disable_button.setStyleSheet(base_style)
-
-        # Store it so we can restore it after disabling
         self._initial_button_style = base_style
 
     def _create_setvalue_box(self):
+        scale = get_dpi_scale()
         font = QFont("Arial")
-        font.setPixelSize(10)
-
+    
+        font.setPixelSize(int(8 * scale))  # <-- This line sets the font size for the input box.
+        
         self._input_box = QLineEdit()
         self._input_box.setFont(font)
+        metrics = QFontMetrics(font)
+        exact_height = metrics.height() + 4
+
         self._input_box.setPlaceholderText("Set Value")
         self._input_box.setAlignment(Qt.AlignCenter)
 
-        metrics = QFontMetrics(font)
-        min_width = metrics.horizontalAdvance("-99e+00") + 3
-        exact_height = metrics.height() + 4
 
-#        self._input_box.setMinimumWidth(min_width)
-        self._input_box.setFixedHeight(exact_height)
+        self._input_box.setFixedHeight(int(exact_height * scale))
         self._input_box.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
-        self._input_box.setStyleSheet("""
-            QLineEdit {
+        # CHANGED: Update the style sheet with the increased font size.
+        self._input_box.setStyleSheet(f"""
+            QLineEdit {{
+                font-size: {int(8 * scale)}px;  /* CHANGED: Increased from 6px to 10px */
                 background-color: lightgrey;
                 border: 1px solid gray;
                 padding: 1px;
                 margin: 0px;
-            }
+            }}
         """)
 
     def _connect_signals(self):
@@ -137,19 +147,18 @@ class CustomSliders(QWidget):
         self._input_box.returnPressed.connect(lambda: self.set_value(self._input_box.text()))
 
     def _setup_layout(self):
+        # Use minimal spacing and margins for a compact vertical stack.
         self._layout = QVBoxLayout()
+        self._layout.setSpacing(2)
+        self._layout.setContentsMargins(2, 2, 2, 2)
         self._layout.addWidget(self._slider)
         self._layout.addWidget(self._disable_button)
         self._layout.addWidget(self._input_box)
         self.setLayout(self._layout)
 
-        button_min_width = self._disable_button.minimumWidth()
-        #self.setMinimumWidth(button_min_width + 4)
-
     def _setup_slider(self):
         self._slider.setRange(self._min_value, self._max_value)
         self._slider.setTickPosition(QSlider.TicksBothSides)
-
         interval = max(1, (self._max_value - self._min_value) // self.number_of_tick_intervals)
         self._slider.setTickInterval(interval)
         self._update_slider_style(self.colour)
@@ -160,12 +169,9 @@ class CustomSliders(QWidget):
 
     def _react_to_is_disbled_state(self):
         if self.is_disabled:
-            # Overwrite with a simpler style
             self._disable_button.setStyleSheet("background-color: gray; border: none;")
         else:
-            # Restore the original style
             self._disable_button.setStyleSheet(self._initial_button_style)
-
         self._update_label()
         self.was_disabled.emit(self.is_disabled)
 
@@ -173,13 +179,13 @@ class CustomSliders(QWidget):
         style = textwrap.dedent(f"""
             QSlider::handle:vertical {{
                 background: {colour};
-                width: 10px;
-                height: 10px;
-                border-radius: 10px;
+                width: {int(10 * get_dpi_scale())}px;
+                height: {int(10 * get_dpi_scale())}px;
+                border-radius: {int(10 * get_dpi_scale())}px;
             }}
             QSlider::add-page:vertical {{
                 background: #d3d3d3;
-                border-radius: 2px;
+                border-radius: {int(2 * get_dpi_scale())}px;
             }}
         """)
         self._slider.setStyleSheet(style)
@@ -187,10 +193,8 @@ class CustomSliders(QWidget):
     def _update_label(self):
         current_val = str(self.get_value())
         self._disable_button.setText(current_val)
-        #self._input_box.setText(current_val)
         self._input_box.clear()
         self._input_box.setPlaceholderText("Set Value")
-
 
     def _string_by_tick(self, i):
         return str(i)
@@ -198,211 +202,132 @@ class CustomSliders(QWidget):
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QPainter(self)
-
-        tick_font = QFont("Arial", 6)
+        tick_font = QFont("Arial", int(5 * get_dpi_scale()))
         painter.setFont(tick_font)
         painter.setPen(QColor(0, 0, 0))
+
+        # Use the slider's geometry to compute a dynamic horizontal offset.
+        slider_geom = self._slider.geometry()
+        text_x = slider_geom.x() + slider_geom.width() + int(5 * get_dpi_scale())
 
         min_val = self._slider.minimum()
         max_val = self._slider.maximum()
         tick_interval = self._slider.tickInterval()
 
         height = self._slider.height()
-        top_off = 5
-        bottom_off = 5
+        top_off = int(5 * get_dpi_scale())
+        bottom_off = int(5 * get_dpi_scale())
         effective_height = height - top_off - bottom_off
 
+        # Adjust the vertical position relative to the slider's geometry.
+        base_y = self._slider.y()
         for i in range(min_val, max_val + 1, tick_interval):
-            tick_pos = height - bottom_off - (effective_height * (i - min_val)) // (max_val - min_val)
-            text_rect = QRect(26, tick_pos, 50, 20)
-            painter.drawText(text_rect, Qt.AlignCenter, self._string_by_tick(i))
+            tick_pos = base_y + height - bottom_off - (effective_height * (i - min_val)) // (max_val - min_val)
+            text_rect = QRect(text_x, tick_pos - int(10 * get_dpi_scale()), 
+                              int(50 * get_dpi_scale()), int(20 * get_dpi_scale()))
+            painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, self._string_by_tick(i))
 
-
-#############################################################################
-
+###############################################################################
+# DoubleSliderWithTicks
+###############################################################################
 class DoubleSliderWithTicks(CustomSliders):
-    """
-    A slider that internally uses integer steps but represents
-    floating-point values by applying a scale factor.
-    """
-
-    # Re-declare a PyQt signal so it emits float instead of int.
     valueChanged = pyqtSignal(float)
 
     def __init__(self, min_value, max_value, colour, number_of_tick_intervals=10):
-        
         self._scale_factor = 1000000
         super().__init__(min_value, max_value, colour, number_of_tick_intervals)
         
-    # -----------------------------------------------------------------------
-    #  Public Methods
-    # -----------------------------------------------------------------------
     def get_value(self):
-        """
-        Return the float value, unscaled.
-        """
         return self._slider.value() / self._scale_factor
 
     def set_value(self, value):
-        """
-        Set the slider to a float, using the scale factor internally.
-        """
         scaled_val = int(value * self._scale_factor)
         self._slider.setValue(scaled_val)
 
     def set_value_exact(self, value):
-        """
-        Set the slider to the value given.
-        Expects the desired value as an unscaled float.
-        """
         self.set_value(value)
 
     def value_changed(self):
-        """
-        Return the float-based signal instead of the slider's integer signal.
-        """
         return self.valueChanged
 
-    # -----------------------------------------------------------------------
-    #  Private Methods
-    # -----------------------------------------------------------------------
     def _setup_slider(self):
-        """
-        Overridden to set slider's range as scaled integers. Ticks also scaled.
-        """
         int_min = int(self._min_value * self._scale_factor)
         int_max = int(self._max_value * self._scale_factor)
         self._slider.setRange(int_min, int_max)
         self._slider.setTickPosition(QSlider.TicksBothSides)
-
         interval = max(1, (int_max - int_min) // self.number_of_tick_intervals)
         self._slider.setTickInterval(interval)
-
         self._update_slider_style(self.colour)
-        self.setMinimumWidth(75)
+        # Remove any forced minimum width so that horizontal dimension is flexible.
         
     def _connect_signals(self):
-        """
-        Connect internal widget signals to their handlers.
-        """
-        # Connect the slider's "raw" integer changes to our float-based signal.
         self._slider.valueChanged.connect(self._emit_corrected_value)
         self._slider.valueChanged.connect(self._update_label)
-
-        # Toggling the push-button toggles disabled style
         self._disable_button.clicked.connect(self._toggle_slider)
         self._input_box.returnPressed.connect(lambda: self.set_value_exact(float(self._input_box.text())))
 
     def _update_label(self):
-        """
-        Show the floating-point value with three decimal places.
-        """
         self._disable_button.setText(f"{self.get_value():.3f}")
-        #self._input_box.setText(f"{self.get_value():.3f}")
         self._input_box.clear()
         self._input_box.setPlaceholderText("Set Value")
 
     def _emit_corrected_value(self, _):
-        """
-        Emit the float value via self.valueChanged to external listeners.
-        """
         self.valueChanged.emit(self.get_value())
 
     def _string_by_tick(self, i):
-        """
-        Convert the scaled integer to a string for tick labeling.
-        """
         return str(i / self._scale_factor)
 
-
-##############################################################################
+###############################################################################
+# EPowerSliderWithTicks
+###############################################################################
 class EPowerSliderWithTicks(DoubleSliderWithTicks):
     def __init__(self, min_value, max_value, colour, number_of_tick_intervals=10):
         self._base_power = 10
         super().__init__(min_value, max_value, colour, number_of_tick_intervals)
         
-    # -----------------------------------------------------------------------
-    #  Public Methods
-    # -----------------------------------------------------------------------
     def get_value(self):
-        """
-        Return 10^n, where n is the float value from the slider.
-        """
         n = self._slider.value() / self._scale_factor
         return self._base_power ** n
 
     def set_value_exact(self, value):
-        """
-        When the actual desired value is given, find the log10 and pass
-        that value to set_value for the slider.
-        """
         if value > 0:
             self.set_value(math.log10(value))
         else:
             self.set_value(0)
-    # -----------------------------------------------------------------------
-    #  Private Methods
-    # -----------------------------------------------------------------------
+
     def _update_label(self):
-        """
-        Display the computed exponent value in scientific notation.
-        """
         self._disable_button.setText(f"{self.get_value():.1e}")
         self._input_box.clear()
         self._input_box.setPlaceholderText("Set Value")
 
     def _string_by_tick(self, i):
-        """
-        Show each tick label as "1E<exponent>" based on the scaled integer.
-        """
         exponent = int(i / self._scale_factor)
         return f"1E{exponent}"
-            
 
-#######################################################################
-# ---------------------------------------------------------------------
-#  Test
-# ---------------------------------------------------------------------
-#######################################################################
-import sys
-from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QSlider, QLabel,
-    QHBoxLayout, QLineEdit, QSpacerItem, QSizePolicy
-)
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QPainter, QFont, QColor
-
-
+###############################################################################
+# TestSliders: Main Testing Widget
+###############################################################################
 class TestSliders(QWidget):
-    """
-    Main widget to display and manually test all slider types
-    in a less repetitive way, with properly captured QLineEdit text.
-    """
-
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Slider Manual Test")
-        self.setGeometry(100, 100, 1200, 400)
+        self.setGeometry(100, 100, 800, 400)
 
-        # Store [Set Value, Min, Max] inputs for each slider type
+        # Store inputs for "Set Value", "Min", "Max" per slider type.
         self.slider_values = {
             "custom": [None, None, None],
             "double": [None, None, None],
             "epower": [None, None, None],
         }
-
-        # Keep references to slider objects for set_value calls
         self.sliders = {}
-
-        # Keep all info needed to rebuild a slider if Min or Max changes
         self.slider_info = {}
-
-        # Main layout
+        
+        # Use tight spacing and minimal margins for overall layout.
         main_layout = QHBoxLayout()
-        main_layout.setSpacing(20)
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(5)
+        main_layout.setContentsMargins(5, 5, 5, 5)
 
-        # 1) Custom Slider
+        # 1) Custom Slider Section
         custom_section = self.add_slider_section(
             slider_type="custom",
             slider_class=CustomSliders,
@@ -412,7 +337,7 @@ class TestSliders(QWidget):
         )
         main_layout.addLayout(custom_section)
 
-        # 2) Double Slider
+        # 2) Double Slider Section
         double_section = self.add_slider_section(
             slider_type="double",
             slider_class=DoubleSliderWithTicks,
@@ -422,7 +347,7 @@ class TestSliders(QWidget):
         )
         main_layout.addLayout(double_section)
 
-        # 3) E-Power Slider
+        # 3) E-Power Slider Section
         epower_section = self.add_slider_section(
             slider_type="epower",
             slider_class=EPowerSliderWithTicks,
@@ -437,30 +362,17 @@ class TestSliders(QWidget):
     def add_slider_section(self, slider_type, slider_class,
                            label_text, min_val, max_val, colour,
                            number_of_tick_intervals, is_float=False):
-        """
-        Creates a slider+label+input-box section.
-        slider_type: a string identifier ('custom', 'double', etc.)
-        slider_class: the QWidget-based slider class to instantiate
-        label_text: text to display above the slider
-        min_val, max_val, colour: parameters to pass to slider_class
-        is_float: whether inputs should be float or int
-        """
-        # Outer vertical container
         container = QVBoxLayout()
-        container.setSpacing(10)
-        container.setContentsMargins(10, 10, 10, 10)
+        container.setSpacing(5)
+        container.setContentsMargins(5, 5, 5, 5)
 
-        # Label
         main_label = QLabel(label_text)
         main_label.setAlignment(Qt.AlignCenter)
         main_label.setStyleSheet("font-weight: bold;")
         container.addWidget(main_label)
 
-        # Create the slider
         slider = slider_class(min_val, max_val, colour, number_of_tick_intervals)
         self.sliders[slider_type] = slider
-
-        # Store info so we can rebuild if Min or Max changes
         self.slider_info[slider_type] = {
             "slider_class": slider_class,
             "min_val": min_val,
@@ -473,7 +385,6 @@ class TestSliders(QWidget):
             "label_text": label_text,
         }
 
-        # Connect to print changes
         slider.value_changed().connect(
             lambda val, label=label_text: print(f"{label} Changed: {val}")
         )
@@ -481,33 +392,28 @@ class TestSliders(QWidget):
             lambda val, label=label_text: print(f"{label} Was toggled: {val}")
         )
 
-        # Horizontal layout: slider on the left, input fields on the right
+        # Horizontal layout for slider and input fields.
         h_layout = QHBoxLayout()
-        h_layout.setSpacing(15)
-        h_layout.setContentsMargins(10, 10, 10, 10)
-
-        # Fixed width for slider area to prevent expansion
+        h_layout.setSpacing(5)
+        h_layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Let the slider size naturally.
         slider_container = QVBoxLayout()
         slider_container.setContentsMargins(0, 0, 0, 0)
         slider_container.addWidget(slider)
-        slider.setMinimumWidth(100)
-        slider.setMaximumWidth(150)
         h_layout.addLayout(slider_container)
 
-        # Remember the layout in slider_info so we can manipulate it later
         self.slider_info[slider_type]["layout"] = h_layout
 
-        # A vertical layout for the three input boxes
         input_layout = QVBoxLayout()
-        input_layout.setSpacing(5)
-        input_layout.setContentsMargins(10, 10, 10, 10)
+        input_layout.setSpacing(3)
+        input_layout.setContentsMargins(5, 5, 5, 5)
 
-        # "Set Value", "Min", "Max"
         input_labels = ["Set Value", "Min", "Max"]
         for i, lbl in enumerate(input_labels):
             single_input_layout = QVBoxLayout()
             single_input_layout.setSpacing(2)
-            single_input_layout.setContentsMargins(5, 5, 5, 5)
+            single_input_layout.setContentsMargins(2, 2, 2, 2)
             single_input_layout.setAlignment(Qt.AlignLeft)
 
             small_label = QLabel(lbl)
@@ -534,7 +440,7 @@ class TestSliders(QWidget):
 
         input_layout.addStretch()
         h_layout.addSpacerItem(
-            QSpacerItem(20, 0, QSizePolicy.Fixed, QSizePolicy.Minimum)
+            QSpacerItem(5, 0, QSizePolicy.Fixed, QSizePolicy.Minimum)
         )
         h_layout.addLayout(input_layout)
         container.addLayout(h_layout)
@@ -542,18 +448,6 @@ class TestSliders(QWidget):
         return container
 
     def save_slider_input(self, slider_type, input_index, input_box, is_float):
-        """
-        Called when user hits 'Enter' in one of the input fields.
-        Attempts to convert the text to float or int depending on is_float,
-        stores it, and prints the value or error message.
-
-        Additional rules:
-          - If this is the "Set Value" field (index=0), call slider.set_value(value)
-          - If this is the "Min" field (index=1), replace the old slider with a new one
-            using the new min and the old max.
-          - If this is the "Max" field (index=2), replace the old slider with a new one
-            using the old min and the new max.
-        """
         text = input_box.text()
         try:
             value = float(text) if is_float else int(text)
@@ -570,11 +464,6 @@ class TestSliders(QWidget):
             print(f"Invalid input for '{slider_type}' at index {input_index}: {text}")
 
     def replace_slider_min(self, slider_type, new_min):
-        """
-        Remove the old slider, create a new one with new_min as the minimum
-        and the old slider's maximum, then add the new slider to the layout
-        in the same place.
-        """
         info = self.slider_info[slider_type]
         old_slider = info["slider_widget"]
         layout = info["layout"]
@@ -600,11 +489,6 @@ class TestSliders(QWidget):
         layout.insertWidget(0, new_slider)
 
     def replace_slider_max(self, slider_type, new_max):
-        """
-        Remove the old slider, create a new one with new_max as the maximum
-        and the old slider's minimum, then add the new slider to the layout
-        in the same place.
-        """
         info = self.slider_info[slider_type]
         old_slider = info["slider_widget"]
         layout = info["layout"]
@@ -629,6 +513,7 @@ class TestSliders(QWidget):
         )
         layout.insertWidget(0, new_slider)
 
+# Enable high DPI attributes.
 QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
 QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
@@ -638,3 +523,7 @@ if __name__ == "__main__":
     window.setWindowTitle("CustomSliders Manual Testing")
     window.show()
     sys.exit(app.exec_())
+
+
+
+
